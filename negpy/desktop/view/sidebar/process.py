@@ -32,6 +32,7 @@ _LUMA_MARGIN_MAX = 1.0
 # neutral (pos 0 = base_color_clip). It sets the luma-band depth of the same-pixel
 # dense-end refs and the clip percentile of the thin-end fallback pass. The ends reach
 # _COLOR_CLIP_MIN (gentlest, near-extreme bounds) and _COLOR_CLIP_MAX (tightest balance).
+_BOUNDS_VARIANTS = ("main", "branch", "ratio", "ratiotp")  # TEMP A/B/C/D
 _COLOR_CLIP_NEUTRAL = float(EXPOSURE_CONSTANTS["base_color_clip"])
 _COLOR_CLIP_MIN = 1e-6
 _COLOR_CLIP_MAX = 5.0
@@ -154,11 +155,12 @@ class ProcessSidebar(BaseSidebar):
         self.set_clipping(None, None)
         analysis_col.addWidget(self.analysis_buffer_slider)
 
-        # TEMP A/B/C of the luma window's reach (normalization.BOUNDS_VARIANT).
+        # TEMP A/B/C/D of the luma window's reach (normalization.BOUNDS_VARIANT).
         self.bounds_variant_btn = SegmentedChoice(
-            (("", "Main"), ("", "Branch"), ("", "Ratio")),
-            "TEMP bounds reach: Main = log-unit reach, Branch = mean of per-channel fractions, Ratio = ratio of sums",
-            data=("main", "branch", "ratio"),
+            (("", "Main"), ("", "Branch"), ("", "Ratio"), ("", "Ratio TP")),
+            "TEMP bounds reach. Main: log-unit reach. Branch: mean of per-channel fractions. Ratio: ratio of sums. "
+            "Ratio TP: Ratio's per-channel split with Main's tone",
+            data=_BOUNDS_VARIANTS,
         )
         self.bounds_variant_btn.setCurrentIndex(1)
         analysis_col.addWidget(self.bounds_variant_btn)
@@ -374,7 +376,7 @@ class ProcessSidebar(BaseSidebar):
     def _on_bounds_variant_changed(self, i: int) -> None:
         from negpy.features.exposure import normalization
 
-        normalization.BOUNDS_VARIANT = ("main", "branch", "ratio")[i]
+        normalization.BOUNDS_VARIANT = _BOUNDS_VARIANTS[i]
         self.controller.reanalyze_current_file()
 
     def _on_reanalyze_frame(self) -> None:

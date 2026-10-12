@@ -897,7 +897,8 @@ def _same_pixel_color_floor_refs(
     return (float(refs[0]), float(refs[1]), float(refs[2]))
 
 
-# TEMP A/B/C: "main" (log-unit reach), "branch" (mean of per-channel fractions), "ratio" (ratio of sums).
+# TEMP A/B/C/D: "main" (log-unit reach), "branch" (mean of per-channel fractions), "ratio" (ratio
+# of sums), "ratiotp" (split by the frame's spans, Main's luma-weighted floor and ceil).
 BOUNDS_VARIANT = "branch"
 
 
@@ -974,7 +975,12 @@ def analyze_log_exposure_bounds_from_log(
         if sp is not None:
             c_floors = [sp[0], sp[1], sp[2]]
     spans = [c_floors[ch] - c_ceils[ch] for ch in range(3)]
-    if BOUNDS_VARIANT != "main" and min(abs(s) for s in spans) > 1e-6:
+    mean_lf, mean_lc = sum(floors) / 3.0, sum(ceils) / 3.0
+    mean_cf, mean_cc = sorted(c_floors)[1], sorted(c_ceils)[1]
+    main_f = [mean_lf + (c_floors[ch] - mean_cf) for ch in range(3)]
+    main_c = [mean_lc + (c_ceils[ch] - mean_cc) for ch in range(3)]
+    proportional = min(abs(s) for s in spans) > 1e-6
+    if BOUNDS_VARIANT in ("branch", "ratio") and proportional:
         # The luma window's reach past the color refs, in units of each channel's own span. A
         # reach in log units would tint a film whose channels differ in density range.
         if BOUNDS_VARIANT == "ratio":
@@ -988,11 +994,16 @@ def analyze_log_exposure_bounds_from_log(
         shift = (sum(c_ceils) / 3.0 - sorted(c_ceils)[1]) / (sum(spans) / 3.0)
         floors = [c_floors[ch] + (reach_f + shift) * spans[ch] for ch in range(3)]
         ceils = [c_ceils[ch] + (reach_c + shift) * spans[ch] for ch in range(3)]
+    elif BOUNDS_VARIANT == "ratiotp" and proportional:
+        # Main's luma-weighted floor and ceil; only the per-channel split of the reach changes.
+        w = (LUMA_R, LUMA_G, LUMA_B)
+        wg = sum(w[ch] * spans[ch] for ch in range(3))
+        a = sum(w[ch] * (main_f[ch] - c_floors[ch]) for ch in range(3)) / wg
+        b = sum(w[ch] * (main_c[ch] - c_ceils[ch]) for ch in range(3)) / wg
+        floors = [c_floors[ch] + a * spans[ch] for ch in range(3)]
+        ceils = [c_ceils[ch] + b * spans[ch] for ch in range(3)]
     else:
-        mean_lf, mean_lc = sum(floors) / 3.0, sum(ceils) / 3.0
-        mean_cf, mean_cc = sorted(c_floors)[1], sorted(c_ceils)[1]
-        floors = [mean_lf + (c_floors[ch] - mean_cf) for ch in range(3)]
-        ceils = [mean_lc + (c_ceils[ch] - mean_cc) for ch in range(3)]
+        floors, ceils = main_f, main_c
 
     return LogNegativeBounds(
         (floors[0], floors[1], floors[2]),
