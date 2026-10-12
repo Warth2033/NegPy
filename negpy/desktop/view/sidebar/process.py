@@ -154,6 +154,15 @@ class ProcessSidebar(BaseSidebar):
         self.set_clipping(None, None)
         analysis_col.addWidget(self.analysis_buffer_slider)
 
+        # TEMP A/B/C of the luma window's reach (normalization.BOUNDS_VARIANT).
+        self.bounds_variant_btn = SegmentedChoice(
+            (("", "Main"), ("", "Branch"), ("", "Ratio")),
+            "TEMP bounds reach: Main = log-unit reach, Branch = mean of per-channel fractions, Ratio = ratio of sums",
+            data=("main", "branch", "ratio"),
+        )
+        self.bounds_variant_btn.setCurrentIndex(1)
+        analysis_col.addWidget(self.bounds_variant_btn)
+
         self.analysis_region_btn = self._tool_toggle(
             "fa5s.vector-square",
             " Draw Region",
@@ -263,6 +272,7 @@ class ProcessSidebar(BaseSidebar):
         self.lock_bounds_btn.toggled.connect(self._on_lock_bounds_toggled)
 
         self.reanalyze_frame_btn.clicked.connect(self._on_reanalyze_frame)
+        self.bounds_variant_btn.currentChanged.connect(self._on_bounds_variant_changed)
         self.analysis_buffer_slider.valueChanged.connect(lambda v: self._on_buffer_changed(v, persist=False))
         self.analysis_buffer_slider.valueCommitted.connect(lambda v: self._on_buffer_changed(v, persist=True))
         self.analysis_buffer_slider.dragStarted.connect(lambda: self.controller.analysis_buffer_drag_changed.emit(True))
@@ -360,6 +370,12 @@ class ProcessSidebar(BaseSidebar):
         else:
             set_hint_kind(self.baseline_source_hint, "warning")
             self.baseline_source_hint.setText("No baseline yet: this frame uses its own analysis until Roll Analysis runs")
+
+    def _on_bounds_variant_changed(self, i: int) -> None:
+        from negpy.features.exposure import normalization
+
+        normalization.BOUNDS_VARIANT = ("main", "branch", "ratio")[i]
+        self.controller.reanalyze_current_file()
 
     def _on_reanalyze_frame(self) -> None:
         conf = self.state.config

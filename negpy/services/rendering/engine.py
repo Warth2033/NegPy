@@ -105,7 +105,9 @@ class DarkroomEngine:
     ) -> Tuple[ImageBuffer, bool]:
         if not context.cache_stages:
             return processor_fn(img, context), True
-        conf_hash = calculate_config_hash(config)
+        from negpy.features.exposure import normalization
+
+        conf_hash = calculate_config_hash(config) + normalization.BOUNDS_VARIANT  # TEMP A/B/C
         cached_entry = getattr(self.cache, cache_field)
 
         if not pipeline_changed and cached_entry and cached_entry.config_hash == conf_hash:

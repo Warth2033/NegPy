@@ -897,6 +897,10 @@ def _same_pixel_color_floor_refs(
     return (float(refs[0]), float(refs[1]), float(refs[2]))
 
 
+# TEMP A/B/C: "main" (log-unit reach), "branch" (mean of per-channel fractions), "ratio" (ratio of sums).
+BOUNDS_VARIANT = "branch"
+
+
 def analyze_log_exposure_bounds(
     image: ImageBuffer,
     roi: Optional[tuple[int, int, int, int]] = None,
@@ -970,11 +974,15 @@ def analyze_log_exposure_bounds_from_log(
         if sp is not None:
             c_floors = [sp[0], sp[1], sp[2]]
     spans = [c_floors[ch] - c_ceils[ch] for ch in range(3)]
-    if min(abs(s) for s in spans) > 1e-6:
+    if BOUNDS_VARIANT != "main" and min(abs(s) for s in spans) > 1e-6:
         # The luma window's reach past the color refs, in units of each channel's own span. A
         # reach in log units would tint a film whose channels differ in density range.
-        reach_f = sum((floors[ch] - c_floors[ch]) / spans[ch] for ch in range(3)) / 3.0
-        reach_c = sum((ceils[ch] - c_ceils[ch]) / spans[ch] for ch in range(3)) / 3.0
+        if BOUNDS_VARIANT == "ratio":
+            reach_f = sum(floors[ch] - c_floors[ch] for ch in range(3)) / sum(spans)
+            reach_c = sum(ceils[ch] - c_ceils[ch] for ch in range(3)) / sum(spans)
+        else:
+            reach_f = sum((floors[ch] - c_floors[ch]) / spans[ch] for ch in range(3)) / 3.0
+            reach_c = sum((ceils[ch] - c_ceils[ch]) / spans[ch] for ch in range(3)) / 3.0
         # The window sits off the luma mean by the base's mean-minus-median channel offset, the
         # placement the print constants are tuned to.
         shift = (sum(c_ceils) / 3.0 - sorted(c_ceils)[1]) / (sum(spans) / 3.0)

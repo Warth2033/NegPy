@@ -21,6 +21,7 @@ from negpy.features.exposure.analysis import (
 from negpy.features.finish.logic import carrier_profiles, linear_carrier_tone
 from negpy.features.finish.processor import carrier_width_px, rebate_tone
 from negpy.features.exposure import models as exposure_models
+from negpy.features.exposure import normalization  # TEMP A/B/C
 from negpy.features.exposure.normalization import (
     LogNegativeBounds,
     analyze_log_exposure_bounds_from_log,
@@ -214,6 +215,7 @@ def _analysis_cache_key(settings: WorkspaceConfig, analysis_source_hash: str) ->
     g = settings.geometry
     return (
         analysis_source_hash,
+        normalization.BOUNDS_VARIANT,  # TEMP A/B/C
         p.process_mode,
         p.analysis_buffer,
         p.analysis_rect,
@@ -372,6 +374,7 @@ class GPUEngine:
         # (key, prefiltered grid, clip fractions), keyed without the clip sliders.
         self._prefilter_cache: Optional[tuple] = None
         self._last_settings: Optional[WorkspaceConfig] = None
+        self._last_bounds_variant = ""
         self._last_targets_rev: int = -1
         self._last_scale_factor: float = 1.0
         # No config field carries render_size_ref, so a size-only change would
@@ -442,6 +445,8 @@ class GPUEngine:
         # Retuned Auto Density/Grade targets live in EXPOSURE_CONSTANTS, invisible to the
         # config diff, but they reshape the print curve in the exposure pass.
         if self._last_targets_rev != exposure_models.TARGETS_REVISION:
+            return 1
+        if self._last_bounds_variant != normalization.BOUNDS_VARIANT:  # TEMP A/B/C
             return 1
         if last.local != settings.local:
             return 1
@@ -1649,6 +1654,7 @@ class GPUEngine:
 
         self._last_settings = settings
         self._last_targets_rev = exposure_models.TARGETS_REVISION
+        self._last_bounds_variant = normalization.BOUNDS_VARIANT
         self._last_scale_factor = scale_factor
         self._last_render_size_ref = render_size_ref
         self._last_full_frame = full_frame
